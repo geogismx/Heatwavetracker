@@ -13,6 +13,10 @@ A multi-characteristic heat wave framework is used to estimate historical and fu
 | CPC      | 0.5*0.5                                                     | 1979-2020 |
 | CMIP5    | 0.25*0.25                                                   | 1950-2099 |
 
+*SLIO: https://www.eodatascience.com/*
+*CPC: https://psl.noaa.gov/data/gridded/data.cpc.globaltemp.html*
+*ERA5: https://developers.google.com/earth-engine/datasets/catalog/ECMWF_ERA5_DAILY*
+*CMIP5:(https://developers.google.com/earth-engine/datasets/catalog/NASA_NEX-GDDP*
 
 **Figure 2.** The model UI. 
 ![](fig/HWT.png)
