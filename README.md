@@ -19,7 +19,7 @@ Click the following links to get the access. The corresponding links are:
 *  ERA5: https://developers.google.com/earth-engine/datasets/catalog/ECMWF_ERA5_DAILY
 *  CMIP5:https://developers.google.com/earth-engine/datasets/catalog/NASA_NEX-GDDP
 
-**Figure 2.** The model UI. 
+**Figure 2.** The model UI. web link: https://tensorflow.users.earthengine.app/view/heat-wave-tracker
 ![](fig/HWT.png)
 
 ## Updates
