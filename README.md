@@ -4,7 +4,7 @@
 
 A multi-characteristic heat wave framework is used to estimate historical and future projected heat waves across Australia. A Google Earth Engine-based toolkit named heat wave tracker (HWT) is developed, which can be used for dynamic visualization, extraction, and processing of complex heat wave events.
 
-**Figure 1**. Tables of long-term climate data. 
+**Table** Long-term climate data for heat wave measurement.
 
 | Name     | Spatial Resolution                                          | Time period | 
 | -------- | ----------------------------------------------------------- | ----------|
