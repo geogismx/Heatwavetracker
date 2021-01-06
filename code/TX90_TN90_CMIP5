@@ -1,0 +1,252 @@
+var NEX = ee.ImageCollection("NASA/NEX-GDDP"),
+    table = ee.FeatureCollection("USDOS/LSIB_SIMPLE/2017");
+var pkg_join  = require('users/geogismx/mountain_solar:join.js');
+/*
+var year  = 2030;
+var stryear = year.toString();
+var start = stryear.concat('-11-01');
+start = ee.Date(start);
+var end   = start.advance(5,'month');
+var yearofnex = ee.ImageCollection(NEX).filterDate(start,end).filterMetadata('scenario','equals','rcp45').select('tasmin');
+var dateRanges = ee.List.sequence(0, end.difference(start,'day').round().subtract(1));
+
+function makeTimeslice(num){
+    var startD = start.advance(num, 'day');
+    var endD   = startD.advance(1, 'day');
+    // Filter to the date range
+    var filtered = ee.ImageCollection(NEX).filterMetadata('scenario','equals','rcp45').select([1]).filterDate(startD, endD);
+    // Get the mean
+    var unitMeans = filtered.mean()
+    .set('system:time_start',startD.millis(),'system:time_end',endD.millis(),'num_elements',filtered.size());
+    return unitMeans;
+}
+  // Aggregate to each timeslice
+
+var new_collection = ee.ImageCollection(dateRanges.map(makeTimeslice));
+*/
+
+
+function nextemp(year){
+  var stryear = year.toString();
+  var start = stryear.concat('-01-01');
+  start = ee.Date(start);
+  var end   = start.advance(1,'year');
+  var yearofnex = ee.ImageCollection(NEX).filterDate(start,end).filterMetadata('scenario','equals','historical').select(['tasmin','tasmax']);
+  var dateRanges = ee.List.sequence(0, end.difference(start,'day').round().subtract(1));
+  
+  function makemintimeslice(num){
+      var startD = start.advance(num, 'day');
+      var endD   = startD.advance(1, 'day');
+      // Filter to the date range
+      var filtered = yearofnex.select([0]).filterDate(startD, endD);
+      // Get the mean
+      var unitMeans = filtered.mean()
+      .set('system:time_start',startD,'system:time_end',endD,'scenario','historical');
+      return unitMeans;
+  }
+  
+  function makemaxtimeslice(num){
+      var startD = start.advance(num, 'day');
+      var endD   = startD.advance(1, 'day');
+      // Filter to the date range
+      var filtered = yearofnex.select([1]).filterDate(startD, endD);
+      // Get the mean
+      var unitMeans = filtered.mean()
+      .set('system:time_start',startD,'system:time_end',endD,'scenario','historical');
+      return unitMeans;
+  }
+    // Aggregate to each timeslice
+  
+  var new_mincollection = ee.ImageCollection(dateRanges.map(makemintimeslice));
+  var new_maxcollection = ee.ImageCollection(dateRanges.map(makemaxtimeslice));
+  
+  var new_collection = pkg_join.InnerJoin(new_mincollection, new_maxcollection, pkg_join.filterTimeEq);
+  
+  var newnex    = new_collection.map(function(image){
+    var maxtemp  = image.select('tasmax').subtract(273.15);
+    var mintemp  = image.select('tasmin').subtract(273.15);
+    var meantemp = maxtemp.add(mintemp).divide(2);
+    meantemp = meantemp.rename('Tmean');
+    var date  =  image.get('system:time_start');
+    date      = ee.Date(date);
+    var month = date.get('month');
+    return meantemp.setMulti({
+            'system:time_start' :date,
+            'system:time_end'   :date,
+            'month'             :month,
+            'scenario'          :'historical'
+    });
+  });
+  return newnex;
+  //return new_collection;
+}
+
+function nexmaxtemp(year){
+  var stryear = year.toString();
+  var start = stryear.concat('-01-01');
+  start = ee.Date(start);
+  var end   = start.advance(1,'year');
+  var yearofnex = ee.ImageCollection(NEX).filterDate(start,end).filterMetadata('scenario','equals','historical').select(['tasmin','tasmax']);
+  var dateRanges = ee.List.sequence(0, end.difference(start,'day').round().subtract(1));
+  
+  //function makemintimeslice(num){
+  //    var startD = start.advance(num, 'day');
+  //    var endD   = startD.advance(1, 'day');
+  //    // Filter to the date range
+  //    var filtered = yearofnex.select([0]).filterDate(startD, endD);
+  //    // Get the mean
+  //    var unitMeans = filtered.mean()
+  //    .set('system:time_start',startD,'system:time_end',endD,'scenario','historical');
+  //    return unitMeans;
+  //}
+  
+  function makemaxtimeslice(num){
+      var startD = start.advance(num, 'day');
+      var endD   = startD.advance(1, 'day');
+      // Filter to the date range
+      var filtered = yearofnex.select([1]).filterDate(startD, endD);
+      // Get the mean
+      var unitMeans = filtered.mean()
+      .set('system:time_start',startD,'system:time_end',endD,'scenario','historical');
+      return unitMeans;
+  }
+    // Aggregate to each timeslice
+  
+  //var new_mincollection = ee.ImageCollection(dateRanges.map(makemintimeslice));
+  var new_maxcollection = ee.ImageCollection(dateRanges.map(makemaxtimeslice));
+  
+  //var new_collection = pkg_join.InnerJoin(new_mincollection, new_maxcollection, pkg_join.filterTimeEq);
+  
+  var newnex    = new_maxcollection.map(function(image){
+    var maxtemp  = image.select('tasmax').subtract(273.15);
+    //var mintemp  = image.select('tasmin').subtract(273.15);
+    //var meantemp = maxtemp.add(mintemp).divide(2);
+    //meantemp = meantemp.rename('Tmean');
+    maxtemp = maxtemp.rename('Tmax');
+    
+    var date  =  image.get('system:time_start');
+    date      = ee.Date(date);
+    var month = date.get('month');
+    return maxtemp.setMulti({
+            'system:time_start' :date,
+            'system:time_end'   :date,
+            'month'             :month,
+            'scenario'          :'historical'
+    });
+  });
+  return newnex;
+  //return new_collection;
+}
+
+function nexmintemp(year){
+  var stryear = year.toString();
+  var start = stryear.concat('-01-01');
+  start = ee.Date(start);
+  var end   = start.advance(1,'year');
+  var yearofnex = ee.ImageCollection(NEX).filterDate(start,end).filterMetadata('scenario','equals','historical').select(['tasmin','tasmax']);
+  var dateRanges = ee.List.sequence(0, end.difference(start,'day').round().subtract(1));
+  
+  function makemintimeslice(num){
+      var startD = start.advance(num, 'day');
+      var endD   = startD.advance(1, 'day');
+      // Filter to the date range
+      var filtered = yearofnex.select([0]).filterDate(startD, endD);
+      // Get the mean
+      var unitMeans = filtered.mean()
+      .set('system:time_start',startD,'system:time_end',endD,'scenario','historical');
+      return unitMeans;
+  }
+  
+  //function makemaxtimeslice(num){
+  //    var startD = start.advance(num, 'day');
+  //    var endD   = startD.advance(1, 'day');
+  //    // Filter to the date range
+  //    var filtered = yearofnex.select([1]).filterDate(startD, endD);
+  //    // Get the mean
+  //    var unitMeans = filtered.mean()
+  //    .set('system:time_start',startD,'system:time_end',endD,'scenario','historical');
+  //    return unitMeans;
+  //}
+    // Aggregate to each timeslice
+  
+  var new_mincollection = ee.ImageCollection(dateRanges.map(makemintimeslice));
+  //var new_maxcollection = ee.ImageCollection(dateRanges.map(makemaxtimeslice));
+  
+  //var new_collection = pkg_join.InnerJoin(new_mincollection, new_maxcollection, pkg_join.filterTimeEq);
+  
+  var newnex    = new_mincollection.map(function(image){
+    //var maxtemp  = image.select('tasmax').subtract(273.15);
+    var mintemp  = image.select('tasmin').subtract(273.15);
+    //var meantemp = maxtemp.add(mintemp).divide(2);
+    //meantemp = meantemp.rename('Tmean');
+    mintemp     = mintemp.rename('Tmin');
+    var date  =  image.get('system:time_start');
+    date      = ee.Date(date);
+    var month = date.get('month');
+    return mintemp.setMulti({
+            'system:time_start' :date,
+            'system:time_end'   :date,
+            'month'             :month,
+            'scenario'          :'historical'
+    });
+  });
+  return newnex;
+  //return new_collection;
+}
+
+
+//var i = 1975
+//var firstcol = nextemp(i);
+//
+//for (i = 1976; i < 2006; i++) {
+//
+//  //var maxcol = funcmax(i);
+//  //var mincol = funcmin(i);
+//  var temcol = nextemp(i);
+//  //var tempcol = pkg_join.InnerJoin(maxcol, mincol, pkg_join.filterTimeEq);
+//  firstcol     = firstcol.merge(temcol);
+//  
+//}
+
+
+//var i = 1975
+//var firstcol = nexmaxtemp(i);
+//
+//for (i = 1976; i < 2006; i++) {
+//
+//  //var maxcol = funcmax(i);
+//  //var mincol = funcmin(i);
+//  var temcol = nexmaxtemp(i);
+//  //var tempcol = pkg_join.InnerJoin(maxcol, mincol, pkg_join.filterTimeEq);
+//  firstcol     = firstcol.merge(temcol);
+//  
+//}
+
+var i = 1975
+var firstcol = nexmintemp(i);
+
+for (i = 1976; i < 2006; i++) {
+
+  //var maxcol = funcmax(i);
+  //var mincol = funcmin(i);
+  var temcol = nexmintemp(i);
+  //var tempcol = pkg_join.InnerJoin(maxcol, mincol, pkg_join.filterTimeEq);
+  firstcol     = firstcol.merge(temcol);
+  
+}
+
+
+var xt90 = firstcol.reduce(ee.Reducer.percentile([90]));
+
+var Australia = ee.FeatureCollection(table).filterMetadata('country_na','equals','Australia')
+//var geometry = Australia.geometry();
+Export.image.toDrive({
+  image: xt90,
+  description: 'Aus_CMIP5_TNP90',
+  folder: 'Threshold_90',
+  region: Australia.geometry().bounds(),
+  scale:  25000,
+  crs:  'EPSG:4326'
+});
+
+
