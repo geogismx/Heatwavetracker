@@ -15,7 +15,7 @@ A multi-characteristic heat wave framework is used to estimate historical and fu
 
 
 **Figure 2.** The model UI. 
-fig/HWT.png
+https://github.com/geogismx/Heatwavetracker/blob/main/fig/HWT.png
 
 ## Updates
 
