@@ -1,5 +1,8 @@
 var table = ee.FeatureCollection("USDOS/LSIB_SIMPLE/2017"),
     silo = ee.ImageCollection("projects/eo-datascience-public/assets/silo_daily");
+
+var table = ee.FeatureCollection("USDOS/LSIB_SIMPLE/2017"),
+    silo = ee.ImageCollection("projects/eo-datascience-public/assets/silo_daily");
 //GEEHWs
 var initialZoom = 5;
 //info panel
@@ -71,14 +74,14 @@ var getCoords = function(pointSelectPanel) {
                           return ee.Feature(ee.Geometry.Point(lon,lat),{step:0});
                 };
 
-var metNames = ['Silo','BoM','ERA5','CPC','CMIP5'];
+var metNames = ['Silo','ERA5','CPC','CMIP5'];
 
-var tempNames = ['EHF','Tmax','Tmin'];
+var tempNames = ['Tmean','Tmax','Tmin'];
 
 var rcpNames = ['RCP45','RCP85'];
 
 var inModeIDs = {  
-    'EHF': 'EHF', 
+    'Tmean': 'EHF', 
     'Tmax': 'Tmax',
     'Tmin': 'Tmin'
 };
@@ -86,7 +89,6 @@ var inModeIDs = {
 
 var inMetIDs = {  
     'Silo': 'SILO',
-    'BoM' : 'BoM',
     'ERA5': 'ERA5',
     'CPC' :'CPC',
     'CMIP5': 'CMIP5'
@@ -111,7 +113,7 @@ var metDatePanel = function() {
       
       // Temperature mode panel
       var viewInfoLabel = ui.Label('4) Temperature Mode:', {padding: '5px 0px 0px 5px', fontSize: '14.5px', color: '#0070BF'});
-      var viewSelect = ui.Select({items: tempNames ,value: 'EHF',style:{stretch: 'horizontal'}});
+      var viewSelect = ui.Select({items: tempNames ,value: 'Tmean',style:{stretch: 'horizontal'}});
       var viewPanel = ui.Panel([viewInfoLabel, viewSelect], ui.Panel.Layout.Flow('horizontal'),{stretch: 'horizontal'});
       
       // RCP mode panel
@@ -333,30 +335,6 @@ function multibandstoImageCollection(image) {
   return ee.ImageCollection.fromImages(bandNames.map(selectBand(image)))
 }
 
-function heatwave(imgcoll,maxThresh){
-
-  var dataset = imgcoll.map(function(img){
-       return img.addBands(ee.Image.constant(0).toDouble().rename('counter'));
-    }).sort('system:time_start');
-  
-  function heatSpells(img, list){
-    var prev = ee.Image(ee.List(list).get(-1));
-    var hot = img.select([0]).gt(maxThresh);
-    var accum = prev.select('counter').add(hot).rename('counter');
-    var out = img.select([0]).addBands(img.select('counter').where(hot.eq(1),accum));
-    return ee.List(list).add(out);
-  }
-  
-  // create first image for iteration
-  var first = ee.List([ee.Image(dataset.first())]);
-  // apply dry speall iteration function
-  var lists = dataset.iterate(heatSpells,first); // get the max value
-  lists = ee.List(lists).slice(1,null);
-  return ee.ImageCollection.fromImages(lists);
-  
-
-}
-
 function silontemp(year,tempmode){
   var stryear = year.toString();
   var start = stryear.concat('-11-01');
@@ -414,72 +392,6 @@ function silontemp(year,tempmode){
 }
 
 
-
-
-
-// HWN mean how many discrete heatwave events for the selected season.
-// HWM means the sum of EHF on all days classed as heatwave days, divide by the number of such days.
-// HWA refers to the hottest day of the hottest heatwave of the year. 
-// The hottest heatwave is the one with the highest average EHF across all days of the heatwave
-// The hottest day of this heatwave is also selected, based on the day within the heatwave with the highest EHF.
-// HWF the number of days in the sum of the duration of all four events.
-// HWF is the sum of days that belong to a period of at least 3 consecutive days where EHF is positive
-
-function itt1(img, list){
-    // get last image
-    var prev = ee.Image(ee.List(list).get(-1));
-    // find areas gt 1 threshold (gt==1, lt==0)
-    var hot =  prev.select('subwave1').eq(1);
-    // add previous day counter to today's counter
-    var accum = img.select('subwave1').add(hot).rename('xcounter');
-    // create a result image for iteration
-    var out = img.addBands(accum);
-    return ee.List(list).add(out);
-}
-
-
-function itt2(img, list){
-    // get last image
-    var prev = ee.Image(ee.List(list).get(-1));
-    // find areas eq 1 and eq 0
-    var hot =  img.select('xcounter').eq(0).and(prev.select('xcounter').eq(1));
-    // add previous day counter to today's counter
-    var accum = img.select('xcounter').add(hot).rename('xcounter1');
-    // create a result image for iteration
-    var out = img.addBands(accum);
-    return ee.List(list).add(out);
-}
-
-function itt3(img, list){
-    // get last image
-    var prev = ee.Image(ee.List(list).get(-1));
-    // find areas eq 1 and eq 0
-    var hot =  img.select('heat_identity').eq(1).and(prev.select('heat_identity').eq(0));
-    // add previous day counter to today's counter
-    var accum = img.select('newcounter').add(hot).rename('accumpoint');
-    // create a result image for iteration
-    var out = img.addBands(accum);
-    return ee.List(list).add(out);
-}
-
-function itt4(img, list){
-    var prev = ee.Image(ee.List(list).get(-1));
-    var hot  = img.select('counter').gt(0);
-    //var accumEHF = prev.select('mEHF').multiply(hot).add(img.select('mEHF')).rename('accumEHF')
-    //var accumEHF = part1;
-    //var prevs = prev.select('mEHF').rename('accumEHF')
-    img = img.select('accumEHF').where(hot.eq(1),prev.select('accumEHF').add(img.select('accumEHF')))
-    //var accum = img.select('mEHF').multiply(hot);
-    //var accum = prev.select('mEHF').multiply(hot).add(img.select('mEHF')).rename('tEHF');
-    var out = img;
-    //var accumEHF = img.select('tEHF').where(hot.eq(1),accum);
-    //var out = img.addBands(accumEHF.toDouble());
-    return ee.List(list).add(out);
-  }
-
-//print(HWFcol)
-// create first image for iteration
-
 function silotemp(year){
   var stryear = year.toString();
   var start = stryear.concat('-11-01');
@@ -508,6 +420,95 @@ function silotemp(year){
   return newsilo;
 }
 
+
+
+// HWN mean how many discrete heatwave events for the selected season.
+// HWM means the sum of EHF on all days classed as heatwave days, divide by the number of such days.
+// HWA refers to the hottest day of the hottest heatwave of the year. 
+// The hottest heatwave is the one with the highest average EHF across all days of the heatwave
+// The hottest day of this heatwave is also selected, based on the day within the heatwave with the highest EHF.
+// HWF the number of days in the sum of the duration of all four events.
+// HWF is the sum of days that belong to a period of at least 3 consecutive days where EHF is positive
+
+function iter1(imgcoll,maxThresh){
+
+  var dataset = imgcoll.map(function(img){
+       return img.addBands(ee.Image.constant(0).toDouble().rename('counter'));
+    }).sort('system:time_start');
+  
+  function heatSpells(img, list){
+    var prev = ee.Image(ee.List(list).get(-1));
+    var hot = img.select([0]).gt(maxThresh);
+    var accum = prev.select('counter').add(hot).rename('counter');
+    var out = img.select([0]).addBands(img.select('counter').where(hot.eq(1),accum));
+    return ee.List(list).add(out);
+  }
+  
+  // create first image for iteration
+  var first1 = ee.List([ee.Image(dataset.first())]);
+  // apply dry speall iteration function
+  var lists = dataset.iterate(heatSpells,first1); // get the max value
+  lists = ee.List(lists).slice(1,null);
+  return ee.ImageCollection.fromImages(lists);
+  
+
+}
+
+
+function iter2(img, list){
+    // get last image
+    var prev = ee.Image(ee.List(list).get(-1));
+    // find areas gt 1 threshold (gt==1, lt==0)
+    var hot =  prev.select('subwave1').eq(1);
+    // add previous day counter to today's counter
+    var accum = img.select('subwave1').add(hot).rename('xcounter');
+    // create a result image for iteration
+    var out = img.addBands(accum);
+    return ee.List(list).add(out);
+}
+
+
+function iter3(img, list){
+    // get last image
+    var prev = ee.Image(ee.List(list).get(-1));
+    // find areas eq 1 and eq 0
+    var hot =  img.select('xcounter').eq(0).and(prev.select('xcounter').eq(1));
+    // add previous day counter to today's counter
+    var accum = img.select('xcounter').add(hot).rename('xcounter1');
+    // create a result image for iteration
+    var out = img.addBands(accum);
+    return ee.List(list).add(out);
+}
+
+function iter4(img, list){
+    // get last image
+    var prev = ee.Image(ee.List(list).get(-1));
+    // find areas eq 1 and eq 0
+    var hot =  img.select('heat_identity').eq(1).and(prev.select('heat_identity').eq(0));
+    // add previous day counter to today's counter
+    var accum = img.select('newcounter').add(hot).rename('accumpoint');
+    // create a result image for iteration
+    var out = img.addBands(accum);
+    return ee.List(list).add(out);
+}
+
+function iter5(img, list){
+    var prev = ee.Image(ee.List(list).get(-1));
+    var hot  = img.select('counter').gt(0);
+    //var accumEHF = prev.select('mEHF').multiply(hot).add(img.select('mEHF')).rename('accumEHF')
+    //var accumEHF = part1;
+    //var prevs = prev.select('mEHF').rename('accumEHF')
+    img = img.select('accumEHF').where(hot.eq(1),prev.select('accumEHF').add(img.select('accumEHF')))
+    //var accum = img.select('mEHF').multiply(hot);
+    //var accum = prev.select('mEHF').multiply(hot).add(img.select('mEHF')).rename('tEHF');
+    var out = img;
+    //var accumEHF = img.select('tEHF').where(hot.eq(1),accum);
+    //var out = img.addBands(accumEHF.toDouble());
+    return ee.List(list).add(out);
+  }
+
+//print(HWFcol)
+// create first image for iteration
 
 // Run button
 var runButton = ui.Button({label: 'Run',  style: {stretch: 'horizontal'}});               
@@ -554,6 +555,12 @@ runButton.onClick(function() {
       
       var tempmode = inModeIDs[mode];
       
+      //print(tempmode)
+      
+      if (mode =='Tmean'){
+        mode = 'EHF'
+      }
+
       var rcpmode = getRCP(metDatePanel);
       
       var pt        = getCoords(pointSelectPanel);
@@ -563,18 +570,21 @@ runButton.onClick(function() {
       if (inMet != 'CMIP5'){
         var str = 'users/tensorflow/Aus_'+inMet+'_'+mode+'/Merged_'+tempmode+'_';
       } 
+      
+      
       else {
         
         str = 'users/tensorflow/Aus_'+inMet+'_'+mode+'/Merged_'+rcpmode+'_'+tempmode+'_';
         
       }
-
+      print(tempmode)
       // Joining the strings together
       //print(str)
       var stryear   = metDate.toString();
       var asset = str.concat(stryear); 
-      
-      var tempcol = silontemp(stryear,tempmode);
+      //var tempcol = silontemp(stryear,tempmode);
+      //print(tempcol)
+      var tempcol = silontemp(stryear,tempmode).map(function(image){return image.select(mode).rename(mode)});
       
       
       var img = ee.Image(asset);
@@ -597,11 +607,11 @@ runButton.onClick(function() {
       });
       
       //print(EHF_Dataset)
-      var HWFdataset = heatwave(EHF_Dataset,0).map(function(img){
+      var HWFdataset = iter1(EHF_Dataset,0).map(function(img){
        return img.addBands(ee.Image.constant(0).toDouble().rename('newcounter'));
       }).sort('system:time_start');
       
-
+      //print(HWFdataset)
       
       var HWFcol = HWFdataset.map(function(img){
           var newcounter = img.select('newcounter');
@@ -611,25 +621,28 @@ runButton.onClick(function() {
       });
       
       
-      var first1   = ee.List([ee.Image(HWFcol.first())]);
-      // reverse the  imglist
+      
       var n = HWFcol.size();
+      var first2   = ee.List([ee.Image(HWFcol.first())]);
       
       var HWFcols = ee.List(HWFcol.toList(n)).reverse();
-      // make it into imgcoll
       HWFcols     = ee.ImageCollection.fromImages(HWFcols);
-      var list1   = HWFcols.iterate(itt1,first1);
-      list1       = ee.List(list1).slice(1,null);
-      var HWFcoln = ee.ImageCollection.fromImages(list1);
+      
+      var list2   = HWFcols.iterate(iter2,first2);
+      list2       = ee.List(list2).slice(1,null);
+      var HWFcoln = ee.ImageCollection.fromImages(list2);
       
       //print(HWFcoln);
       
-      HWFcoln = HWFcoln.select([0,1,2,4,5])
+      //HWFcoln = HWFcoln.select([0,1,2,4,5])
+      
+      HWFcoln = HWFcoln.select(["EHF","counter","newcounter","subwave2","xcounter"])
+      
         
-      var first2 = ee.List([ee.Image(HWFcoln.first())]);
-      var list2 = HWFcoln.iterate(itt2,first2);
-      list2 = ee.List(list2).slice(1,null).reverse();
-      var HWFcolns = ee.ImageCollection.fromImages(list2);
+      var first3 = ee.List([ee.Image(HWFcoln.first())]);
+      var list3 = HWFcoln.iterate(iter3,first3);
+      list3 = ee.List(list3).slice(1,null).reverse();
+      var HWFcolns = ee.ImageCollection.fromImages(list3);
       
       //print(HWFcolns)
       HWFcolns = HWFcolns.map(function(img){
@@ -643,27 +656,30 @@ runButton.onClick(function() {
       });
       
       //print(HWFcolns)
-      HWFcolns = HWFcolns.select([0,1,2,6,7,8])
+      //HWFcolns = HWFcolns.select([0,1,2,5,6,7,8])
+      HWFcolns = HWFcolns.select(["EHF","counter","newcounter","subwave2","xcounter1","heat_identity","mEHF","accumEHF"])
       
-      var first3 = ee.List([ee.Image(HWFcolns.first())]);
+      var first4 = ee.List([ee.Image(HWFcolns.first())]);
       
       
       HWFcolns = ee.List(HWFcolns.toList(n)).reverse();
       HWFcolns     = ee.ImageCollection.fromImages(HWFcolns);
-      var list3 = HWFcolns.iterate(itt3,first3);
-      list3 = ee.List(list3).slice(1,null).reverse();
-      HWFcolns = ee.ImageCollection.fromImages(list3);
+      var list4 = HWFcolns.iterate(iter4,first4);
+      list4 = ee.List(list4).slice(1,null).reverse();
+      HWFcolns = ee.ImageCollection.fromImages(list4);
       
       //print(HWFcolns)
       
-      HWFcolnt = HWFcolns.select([1,6]);
-      var first4 = ee.List([ee.Image(HWFcolns.first())]);
+      //HWFcolnt = HWFcolns.select([1,6]);
+      var first5 = ee.List([ee.Image(HWFcolns.first())]);
       // apply EHF iteration function
-      var list4 = HWFcolns.iterate(itt4,first4); // get the max value
-      list4 = ee.List(list4).slice(1,null);
-      var HWFcolnt = ee.ImageCollection.fromImages(list4);
+      var list5 = HWFcolns.iterate(iter5,first5); // get the max value
+      list5 = ee.List(list5).slice(1,null);
+      var HWFcolnt = ee.ImageCollection.fromImages(list5);
+      //print(HWFcolnt)
       
-      var EHFcollection = pkg_join.InnerJoin(HWFcolns.select([0,1,3,4,6]), HWFcolnt, pkg_join.filterTimeEq);
+      //var EHFcollection = pkg_join.InnerJoin(HWFcolns.select([0,1,3,4,6]), HWFcolnt, pkg_join.filterTimeEq);
+      var EHFcollection = pkg_join.InnerJoin(HWFcolns.select(["EHF","counter","xcounter1","heat_identity","mEHF","accumpoint"]), HWFcolnt, pkg_join.filterTimeEq);
 
       EHFcollection = EHFcollection.map(function(img){
       
@@ -741,11 +757,12 @@ runButton.onClick(function() {
                               style: {margin: '8px -8px -8px -8px'}    
               });
               
-              var tchart     = ui.Chart.image.series(tempcol.select(tempmode), pt, ee.Reducer.first(), 5000).setOptions({     
-                                title: tempmode+' timer series',     
+              var tchart     = ui.Chart.image.series(tempcol.select(mode), pt, ee.Reducer.first(), 5000).setOptions({
+                                
+                                title: mode+" "+'time series',
                                 titleTextStyle: {fontSize: '15'}, 
                                 vAxis:{
-                                       title: tempmode,    
+                                       title: mode,    
                                        titleTextStyle: {fontSize: '12'},    
                                       },   
                                 hAxis:{     
@@ -755,10 +772,12 @@ runButton.onClick(function() {
                                 });
               
               var hchart     = ui.Chart.image.series(EHF_Dataset.select('EHF'), pt, ee.Reducer.first(), 5000).setOptions({     
-                                title: tempmode+' timer series',     
+                                
+                                title: 'Heat wave time series',     
                                 titleTextStyle: {fontSize: '15'}, 
+                                legend: 'null',
                                 vAxis:{
-                                       title: tempmode,    
+                                       title: "Heat wave",    
                                        titleTextStyle: {fontSize: '12'},    
                                       },   
                                 hAxis:{     
@@ -767,11 +786,27 @@ runButton.onClick(function() {
                                       }
                                 });
 
-              var mChart     = ui.Chart.image.series(HWFcolns.select('mEHF'),   pt, ee.Reducer.first(), 5000).setOptions({     
-                                title: 'Active heat wave events',     
+              var mChart     = ui.Chart.image.series(HWFcolns.select('heat_identity'),   pt, ee.Reducer.first(), 5000).setOptions({     
+                               
+                                title: 'Heat wave identity',     
                                 titleTextStyle: {fontSize: '15'}, 
+                                legend: 'none',
                                 vAxis:{
-                                       title: 'Active heat wave events',    
+                                       title: 'Heat wave identity',    
+                                       titleTextStyle: {fontSize: '12'},    
+                                      },   
+                                hAxis:{     
+                                      title: 'Date',
+                                      titleTextStyle: {fontSize: '12'},   
+                                      }
+                                });
+              //HWFdataset
+              var countChart  = ui.Chart.image.series(HWFcolnt.select('accumEHF'), pt, ee.Reducer.first(), 5000).setOptions({     
+                                title: 'Accumulated heat wave index',     
+                                titleTextStyle: {fontSize: '15'}, 
+                                legend: 'none',
+                                vAxis:{
+                                       title: 'Accumulated heat wave index',    
                                        titleTextStyle: {fontSize: '12'},    
                                       },   
                                 hAxis:{     
@@ -807,7 +842,7 @@ runButton.onClick(function() {
               //var linkPanel = ui.Panel([link]);
               
               //map.addLayer(linkPanel)
-              chartPanel.add(tchart).add(hchart).add(mChart);   
+              chartPanel.add(tchart).add(hchart).add(mChart).add(countChart);   
               
               var hideChartMode = true;   
               
@@ -821,11 +856,11 @@ runButton.onClick(function() {
                       chartWrapper.style().set({width: '97px'});        
                   } 
                   else{
-              var tchart     = ui.Chart.image.series(tempcol.select(tempmode), pt, ee.Reducer.first(), 5000).setOptions({     
-                                title: tempmode+' timer series',     
+              var tchart     = ui.Chart.image.series(tempcol.select(mode), pt, ee.Reducer.first(), 5000).setOptions({     
+                                title: mode+" "+'time series',     
                                 titleTextStyle: {fontSize: '15'}, 
                                 vAxis:{
-                                       title: tempmode,    
+                                       title: mode,    
                                        titleTextStyle: {fontSize: '12'},    
                                       },   
                                 hAxis:{     
@@ -833,12 +868,12 @@ runButton.onClick(function() {
                                       titleTextStyle: {fontSize: '12'},   
                                       }
                                 });
-
+              
               var hchart     = ui.Chart.image.series(EHF_Dataset.select('EHF'), pt, ee.Reducer.first(), 5000).setOptions({     
-                                title: tempmode+' timer series',     
+                                title: 'Heat wave time series',     
                                 titleTextStyle: {fontSize: '15'}, 
                                 vAxis:{
-                                       title: tempmode,    
+                                       title: "Heat wave",    
                                        titleTextStyle: {fontSize: '12'},    
                                       },   
                                 hAxis:{     
@@ -846,11 +881,23 @@ runButton.onClick(function() {
                                       titleTextStyle: {fontSize: '12'},   
                                       }
                                 });
-              var mChart     = ui.Chart.image.series(HWFcolns.select('mEHF'),   pt, ee.Reducer.first(), 5000).setOptions({     
-                                title: 'Active heat wave events',     
+              var mChart     = ui.Chart.image.series(HWFcolns.select('heat_identity'),   pt, ee.Reducer.first(), 5000).setOptions({     
+                                title: 'Heat wave identity',     
                                 titleTextStyle: {fontSize: '15'}, 
                                 vAxis:{
-                                       title: 'Active heat wave events',    
+                                       title: 'Heat wave identity',    
+                                       titleTextStyle: {fontSize: '12'},    
+                                      },   
+                                hAxis:{     
+                                      title: 'Date',
+                                      titleTextStyle: {fontSize: '12'},   
+                                      }
+                                });
+              var countChart     = ui.Chart.image.series(HWFcolnt.select('accumEHF'), pt, ee.Reducer.first(), 5000).setOptions({     
+                                title: 'Accumulated heat wave index',     
+                                titleTextStyle: {fontSize: '15'}, 
+                                vAxis:{
+                                       title: 'Accumulated heat wave index',    
                                        titleTextStyle: {fontSize: '12'},    
                                       },   
                                 hAxis:{     
@@ -886,7 +933,7 @@ runButton.onClick(function() {
               //                   {allowHtml: true});
               //var linkPanel = ui.Panel([link]);
               
-                  chartPanel.add(tchart).add(hchart).add(mChart);         
+                  chartPanel.add(tchart).add(hchart).add(mChart).add(countChart);         
                   chartWrapper.style().set({width: '400px'});        
                   }      
               },        
